@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel - Analytics Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -91,12 +90,36 @@ tr:hover { background: #f9f9f9; }
 
 <script>
 // ═══════════════════════════════════════════════════════
-// SUPABASE CONFIG - MANUALLY TYPED (NO COPY-PASTE ISSUES)
+// DIRECT REST API - NO SDK NEEDED
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
 
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Direct API call function
+async function queryTable(table, params = '') {
+  const url = `${SUPABASE_URL}/rest/v1/${table}${params}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'count=exact'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  const count = response.headers.get('content-range');
+  const data = await response.json();
+  
+  return {
+    data: data,
+    count: count ? parseInt(count.split('/')[1]) : data.length
+  };
+}
 
 let trafficChart, deviceChart;
 
@@ -169,16 +192,16 @@ async function loadAllData() {
 }
 
 async function loadStats() {
-  const { count: s } = await db.from('analytics_sessions').select('*', { count: 'exact', head: true });
+  const { count: s } = await queryTable('analytics_sessions', '?select=id');
   document.getElementById('totalSessions').textContent = s || 0;
   
-  const { count: v } = await db.from('analytics_page_views').select('*', { count: 'exact', head: true });
+  const { count: v } = await queryTable('analytics_page_views', '?select=id');
   document.getElementById('totalPageViews').textContent = v || 0;
   
-  const { count: c } = await db.from('analytics_clicks').select('*', { count: 'exact', head: true });
+  const { count: c } = await queryTable('analytics_clicks', '?select=id');
   document.getElementById('totalClicks').textContent = c || 0;
   
-  const { count: e } = await db.from('analytics_events').select('*', { count: 'exact', head: true });
+  const { count: e } = await queryTable('analytics_events', '?select=id');
   document.getElementById('totalEvents').textContent = e || 0;
 }
 
@@ -186,11 +209,8 @@ async function loadTrafficChart() {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
-  const { data } = await db
-    .from('analytics_page_views')
-    .select('viewed_at')
-    .gte('viewed_at', sevenDaysAgo.toISOString())
-    .order('viewed_at', { ascending: true });
+  const { data } = await queryTable('analytics_page_views', 
+    `?select=viewed_at&viewed_at=gte.${sevenDaysAgo.toISOString()}&order=viewed_at.asc`);
   
   const dailyCounts = {};
   (data || []).forEach(v => {
@@ -204,7 +224,7 @@ async function loadTrafficChart() {
 }
 
 async function loadDeviceChart() {
-  const { data } = await db.from('analytics_sessions').select('device_type');
+  const { data } = await queryTable('analytics_sessions', '?select=device_type');
   
   const counts = {};
   (data || []).forEach(s => { 
@@ -218,11 +238,8 @@ async function loadDeviceChart() {
 }
 
 async function loadSessionsTable() {
-  const { data, error } = await db
-    .from('analytics_sessions')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(20);
+  const { data, error } = await queryTable('analytics_sessions', 
+    '?select=*&order=started_at.desc&limit=20');
   
   const tbody = document.getElementById('sessionsTable');
   
@@ -248,7 +265,7 @@ async function loadSessionsTable() {
 }
 
 async function loadPagesTable() {
-  const { data, error } = await db.from('analytics_page_views').select('path, time_on_page');
+  const { data, error } = await queryTable('analytics_page_views', '?select=path,time_on_page');
   
   const tbody = document.getElementById('pagesTable');
   
@@ -282,7 +299,7 @@ async function loadPagesTable() {
 }
 
 async function loadClicksTable() {
-  const { data, error } = await db.from('analytics_clicks').select('element_tag, element_text').limit(1000);
+  const { data, error } = await queryTable('analytics_clicks', '?select=element_tag,element_text&limit=1000');
   
   const tbody = document.getElementById('clicksTable');
   
@@ -313,7 +330,7 @@ async function loadClicksTable() {
 }
 
 async function loadEventsTable() {
-  const { data, error } = await db.from('analytics_events').select('event_name, event_category, event_label');
+  const { data, error } = await queryTable('analytics_events', '?select=event_name,event_category,event_label');
   
   const tbody = document.getElementById('eventsTable');
   
@@ -348,7 +365,7 @@ async function loadEventsTable() {
 initCharts();
 loadAllData();
 setInterval(loadAllData, 60000);
-console.log('🚀 Admin Dashboard Loaded');
+console.log('🚀 Admin Dashboard Loaded (Direct REST API)');
 </script>
 
 </body>
