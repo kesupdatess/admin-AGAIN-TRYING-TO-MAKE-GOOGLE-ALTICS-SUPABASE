@@ -39,86 +39,95 @@ tr:hover { background: #f9f9f9; }
 
   <div class="stats">
     <div class="stat-card"><h3>Total Sessions</h3><div class="value" id="totalSessions">-</div></div>
-    <div class="stat-card"><h3>Page Views</h3><div class="value" id="totalPageViews">-</div></div>
-    <div class="stat-card"><h3>Total Clicks</h3><div class="value" id="totalClicks">-</div></div>
-    <div class="stat-card"><h3>Custom Events</h3><div class="value" id="totalEvents">-</div></div>
+    <div class="stat-card"><h3>Avg Active Time</h3><div class="value" id="avgActiveTime">-</div></div>
+    <div class="stat-card"><h3>Avg Scroll Depth</h3><div class="value" id="avgScroll">-</div></div>
+    <div class="stat-card"><h3>Returning Visitors</h3><div class="value" id="returningVisitors">-</div></div>
   </div>
 
   <div class="section">
-    <h2>📈 Traffic (Last 7 Days)</h2>
-    <div class="chart-container"><canvas id="trafficChart"></canvas></div>
-  </div>
-
-  <div class="section">
-    <h2>📱 Device Types</h2>
+    <h2>📱 Device Breakdown</h2>
     <div class="chart-container"><canvas id="deviceChart"></canvas></div>
   </div>
 
   <div class="section">
-    <h2>👥 Recent Sessions</h2>
-    <table>
-      <thead><tr><th>Time</th><th>Device</th><th>Browser</th><th>OS</th><th>Referrer</th></tr></thead>
-      <tbody id="sessionsTable"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
-    </table>
+    <h2>🌐 Browser Stats</h2>
+    <div class="chart-container"><canvas id="browserChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <h2>💻 Operating Systems</h2>
+    <div class="chart-container"><canvas id="osChart"></canvas></div>
   </div>
 
   <div class="section">
     <h2>📄 Most Visited Pages</h2>
     <table>
-      <thead><tr><th>Page</th><th>Views</th><th>Avg Time</th></tr></thead>
-      <tbody id="pagesTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+      <thead><tr><th>Page</th><th>Visits</th><th>Avg Time</th><th>Avg Scroll</th></tr></thead>
+      <tbody id="pagesTable"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
     </table>
   </div>
 
   <div class="section">
     <h2>🖱️ Most Clicked Elements</h2>
     <table>
-      <thead><tr><th>Element</th><th>Text</th><th>Clicks</th></tr></thead>
-      <tbody id="clicksTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+      <thead><tr><th>Element</th><th>Clicks</th></tr></thead>
+      <tbody id="clicksTable"><tr><td colspan="2" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>🔍 Search Queries</h2>
+    <table>
+      <thead><tr><th>Query</th><th>Count</th></tr></thead>
+      <tbody id="searchTable"><tr><td colspan="2" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>👥 Recent Sessions</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Page</th><th>Device</th><th>Browser</th><th>Active Time</th><th>Scroll</th><th>Clicks</th></tr></thead>
+      <tbody id="sessionsTable"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
 
 <script>
-const SUPABASE_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
+const SUPABASE_URL = 'https://jbyctjddlbyddzavmczg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpieWN0amRkbGJ5ZGR6YXZtY3pnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzNzE2NzYsImV4cCI6MjA5Nzk0NzY3Nn0.klEa0-zSGbHZYA-fYiHYg4ceoL1PQ87gowGEbvVmhqU';
 
-async function queryTable(table, params = '') {
-  const url = `${SUPABASE_URL}/rest/v1/${table}${params}`;
+async function queryTable(params = '') {
+  const url = `${SUPABASE_URL}/rest/v1/analytics${params}`;
   const response = await fetch(url, {
     headers: {
       'apikey': SUPABASE_KEY,
       'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'count=exact'
+      'Content-Type': 'application/json'
     }
   });
   
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  
-  const data = await response.json();
-  const contentRange = response.headers.get('content-range');
-  let count = data.length;
-  if (contentRange) {
-    const match = contentRange.match(/\/(\d+)/);
-    if (match) count = parseInt(match[1]);
-  }
-  
-  return { data, count };
+  return await response.json();
 }
 
-let trafficChart, deviceChart;
+let deviceChart, browserChart, osChart;
 
 function initCharts() {
-  trafficChart = new Chart(document.getElementById('trafficChart').getContext('2d'), {
-    type: 'line',
-    data: { labels: [], datasets: [{ label: 'Page Views', data: [], borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', tension: 0.4, fill: true }] },
+  deviceChart = new Chart(document.getElementById('deviceChart').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#2563eb', '#059669', '#d97706'] }] },
     options: { responsive: true, maintainAspectRatio: false }
   });
   
-  deviceChart = new Chart(document.getElementById('deviceChart').getContext('2d'), {
-    type: 'doughnut',
-    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#2563eb', '#059669', '#d97706', '#dc2626'] }] },
+  browserChart = new Chart(document.getElementById('browserChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Users', data: [], backgroundColor: '#2563eb' }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+  
+  osChart = new Chart(document.getElementById('osChart').getContext('2d'), {
+    type: 'pie',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: ['#2563eb', '#059669', '#d97706', '#dc2626', '#8b5cf6'] }] },
     options: { responsive: true, maintainAspectRatio: false }
   });
 }
@@ -128,22 +137,20 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function safeHostname(url) {
-  try {
-    if (!url || !url.includes('http')) return url || 'Direct';
-    return new URL(url).hostname;
-  } catch(e) { return url || 'Direct'; }
-}
-
 async function loadAllData() {
   try {
     document.getElementById('errorBox').innerHTML = '';
-    await loadStats();
-    await loadTrafficChart();
-    await loadDeviceChart();
-    await loadSessionsTable();
-    await loadPagesTable();
-    await loadClicksTable();
+    const data = await queryTable('?order=timestamp.desc');
+    
+    loadStats(data);
+    loadDeviceChart(data);
+    loadBrowserChart(data);
+    loadOSChart(data);
+    loadPagesTable(data);
+    loadClicksTable(data);
+    loadSearchTable(data);
+    loadSessionsTable(data);
+    
     document.getElementById('statusBox').innerHTML = '<div class="success">✅ Data refreshed!</div>';
     setTimeout(() => { document.getElementById('statusBox').innerHTML = ''; }, 3000);
   } catch (error) {
@@ -151,129 +158,144 @@ async function loadAllData() {
   }
 }
 
-async function loadStats() {
-  const { count: s } = await queryTable('analytics_sessions', '?select=*');
-  document.getElementById('totalSessions').textContent = s;
+function loadStats(data) {
+  document.getElementById('totalSessions').textContent = data.length;
   
-  const { count: v } = await queryTable('analytics_page_views', '?select=*');
-  document.getElementById('totalPageViews').textContent = v;
+  const avgActive = data.length > 0 
+    ? Math.round(data.reduce((sum, s) => sum + (s.active_time_seconds || 0), 0) / data.length)
+    : 0;
+  document.getElementById('avgActiveTime').textContent = avgActive + 's';
   
-  const { count: c } = await queryTable('analytics_clicks', '?select=*');
-  document.getElementById('totalClicks').textContent = c;
+  const avgScroll = data.length > 0
+    ? Math.round(data.reduce((sum, s) => sum + (s.scroll_depth || 0), 0) / data.length)
+    : 0;
+  document.getElementById('avgScroll').textContent = avgScroll + '%';
   
-  const { count: e } = await queryTable('analytics_events', '?select=*');
-  document.getElementById('totalEvents').textContent = e;
+  const returning = data.filter(s => s.is_returning).length;
+  const returningPercent = data.length > 0 ? Math.round((returning / data.length) * 100) : 0;
+  document.getElementById('returningVisitors').textContent = returningPercent + '%';
 }
 
-async function loadTrafficChart() {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
-  const { data } = await queryTable('analytics_page_views', 
-    `?select=viewed_at&viewed_at=gte.${sevenDaysAgo.toISOString()}&order=viewed_at.asc`);
-  
-  const dailyCounts = {};
-  (data || []).forEach(v => {
-    const date = new Date(v.viewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    dailyCounts[date] = (dailyCounts[date] || 0) + 1;
-  });
-  
-  trafficChart.data.labels = Object.keys(dailyCounts);
-  trafficChart.data.datasets[0].data = Object.values(dailyCounts);
-  trafficChart.update();
-}
-
-async function loadDeviceChart() {
-  const { data } = await queryTable('analytics_sessions', '?select=device_type');
-  
+function loadDeviceChart(data) {
   const counts = {};
-  (data || []).forEach(s => { 
-    const t = s.device_type || 'Unknown'; 
-    counts[t] = (counts[t] || 0) + 1; 
-  });
-  
+  data.forEach(s => { counts[s.device || 'Unknown'] = (counts[s.device || 'Unknown'] || 0) + 1; });
   deviceChart.data.labels = Object.keys(counts);
   deviceChart.data.datasets[0].data = Object.values(counts);
   deviceChart.update();
 }
 
-async function loadSessionsTable() {
-  const { data } = await queryTable('analytics_sessions', 
-    '?select=*&order=started_at.desc&limit=20');
-  
-  const tbody = document.getElementById('sessionsTable');
-  
-  if (!data || data.length === 0) { 
-    tbody.innerHTML = '<tr><td colspan="5" class="loading">No sessions yet</td></tr>'; 
-    return; 
-  }
-  
-  tbody.innerHTML = data.map(s => `
-    <tr>
-      <td>${new Date(s.started_at).toLocaleString()}</td>
-      <td>${escapeHtml(s.device_type) || 'Unknown'}</td>
-      <td>${escapeHtml(s.browser) || 'Unknown'}</td>
-      <td>${escapeHtml(s.os) || 'Unknown'}</td>
-      <td>${escapeHtml(safeHostname(s.referrer))}</td>
-    </tr>
-  `).join('');
+function loadBrowserChart(data) {
+  const counts = {};
+  data.forEach(s => { counts[s.browser || 'Unknown'] = (counts[s.browser || 'Unknown'] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  browserChart.data.labels = sorted.map(([b]) => b);
+  browserChart.data.datasets[0].data = sorted.map(([, c]) => c);
+  browserChart.update();
 }
 
-async function loadPagesTable() {
-  const { data } = await queryTable('analytics_page_views', '?select=path,time_on_page');
-  
+function loadOSChart(data) {
+  const counts = {};
+  data.forEach(s => { counts[s.os || 'Unknown'] = (counts[s.os || 'Unknown'] || 0) + 1; });
+  osChart.data.labels = Object.keys(counts);
+  osChart.data.datasets[0].data = Object.values(counts);
+  osChart.update();
+}
+
+function loadPagesTable(data) {
   const pages = {};
-  (data || []).forEach(v => {
-    const p = v.path || 'unknown';
-    if (!pages[p]) pages[p] = { views: 0, totalTime: 0 };
-    pages[p].views++;
-    pages[p].totalTime += v.time_on_page || 0;
+  data.forEach(s => {
+    const p = s.page || 'unknown';
+    if (!pages[p]) pages[p] = { visits: 0, totalTime: 0, totalScroll: 0 };
+    pages[p].visits++;
+    pages[p].totalTime += s.active_time_seconds || 0;
+    pages[p].totalScroll += s.scroll_depth || 0;
   });
   
-  const sorted = Object.entries(pages).sort((a, b) => b[1].views - a[1].views).slice(0, 15);
+  const sorted = Object.entries(pages).sort((a, b) => b[1].visits - a[1].visits).slice(0, 10);
   const tbody = document.getElementById('pagesTable');
   
-  if (sorted.length === 0) { 
-    tbody.innerHTML = '<tr><td colspan="3" class="loading">No pages yet</td></tr>'; 
-    return; 
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">No data yet</td></tr>';
+    return;
   }
   
-  tbody.innerHTML = sorted.map(([p, s]) => `
+  tbody.innerHTML = sorted.map(([page, stats]) => `
     <tr>
-      <td>${escapeHtml(p)}</td>
-      <td>${s.views}</td>
-      <td>${Math.round(s.totalTime / s.views)}s</td>
+      <td>${escapeHtml(page)}</td>
+      <td>${stats.visits}</td>
+      <td>${Math.round(stats.totalTime / stats.visits)}s</td>
+      <td>${Math.round(stats.totalScroll / stats.visits)}%</td>
     </tr>
   `).join('');
 }
 
-async function loadClicksTable() {
-  const { data } = await queryTable('analytics_clicks', '?select=element_tag,element_text&limit=1000');
-  
+function loadClicksTable(data) {
   const clicks = {};
-  (data || []).forEach(c => {
-    const key = (c.element_tag || 'unknown') + '|' + (c.element_text || '');
-    clicks[key] = (clicks[key] || 0) + 1;
+  data.forEach(s => {
+    (s.clicks || []).forEach(c => {
+      clicks[c.label] = (clicks[c.label] || 0) + 1;
+    });
   });
   
   const sorted = Object.entries(clicks).sort((a, b) => b[1] - a[1]).slice(0, 20);
   const tbody = document.getElementById('clicksTable');
   
-  if (sorted.length === 0) { 
-    tbody.innerHTML = '<tr><td colspan="3" class="loading">No clicks yet</td></tr>'; 
-    return; 
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="2" class="loading">No clicks yet</td></tr>';
+    return;
   }
   
-  tbody.innerHTML = sorted.map(([k, c]) => {
-    const parts = k.split('|');
-    return '<tr><td>' + escapeHtml(parts[0]) + '</td><td>' + escapeHtml(parts[1]) + '</td><td>' + c + '</td></tr>';
-  }).join('');
+  tbody.innerHTML = sorted.map(([label, count]) => `
+    <tr><td>${escapeHtml(label)}</td><td>${count}</td></tr>
+  `).join('');
+}
+
+function loadSearchTable(data) {
+  const queries = {};
+  data.forEach(s => {
+    (s.search_queries || []).forEach(q => {
+      queries[q] = (queries[q] || 0) + 1;
+    });
+  });
+  
+  const sorted = Object.entries(queries).sort((a, b) => b[1] - a[1]).slice(0, 15);
+  const tbody = document.getElementById('searchTable');
+  
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="2" class="loading">No searches yet</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = sorted.map(([query, count]) => `
+    <tr><td>${escapeHtml(query)}</td><td>${count}</td></tr>
+  `).join('');
+}
+
+function loadSessionsTable(data) {
+  const tbody = document.getElementById('sessionsTable');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="loading">No sessions yet</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = data.slice(0, 20).map(s => `
+    <tr>
+      <td>${new Date(s.timestamp).toLocaleString()}</td>
+      <td>${escapeHtml(s.page)}</td>
+      <td>${escapeHtml(s.device)}</td>
+      <td>${escapeHtml(s.browser)}</td>
+      <td>${s.active_time_seconds}s</td>
+      <td>${s.scroll_depth}%</td>
+      <td>${(s.clicks || []).length}</td>
+    </tr>
+  `).join('');
 }
 
 initCharts();
 loadAllData();
 setInterval(loadAllData, 60000);
-console.log('🚀 Admin Dashboard Loaded');
+console.log('🚀 KES Analytics Dashboard Loaded');
 </script>
 
 </body>
