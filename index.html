@@ -26,15 +26,18 @@ tr:hover { background: #f9f9f9; }
 .loading { text-align: center; padding: 40px; color: #999; }
 .error { background: #fee; color: #c33; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
 .success { background: #efe; color: #3c3; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+.debug { background: #000; color: #0f0; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; }
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>📊 Analytics Dashboard</h1>
+  <h1>📊 Analytics Dashboard (FIXED)</h1>
   <a href="https://kesupdatess.github.io/dummy-website/" class="btn">← Dummy Website</a>
   <button class="btn" onclick="loadAllData()">🔄 Refresh Data</button>
+  <button class="btn" onclick="toggleDebug()" style="background:#666;">🐛 Toggle Debug</button>
   
+  <div id="debugBox" class="debug" style="display:none;"></div>
   <div id="errorBox"></div>
   <div id="statusBox"></div>
 
@@ -89,15 +92,33 @@ tr:hover { background: #f9f9f9; }
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-// DIRECT REST API - NO SDK NEEDED
-// ═══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
 
-// Direct API call function
+let debugMode = false;
+
+function debug(msg) {
+  if (!debugMode) return;
+  const box = document.getElementById('debugBox');
+  const time = new Date().toLocaleTimeString();
+  box.innerHTML += `[${time}] ${msg}\n`;
+  box.scrollTop = box.scrollHeight;
+  console.log(msg);
+}
+
+function toggleDebug() {
+  debugMode = !debugMode;
+  const box = document.getElementById('debugBox');
+  box.style.display = debugMode ? 'block' : 'none';
+  if (debugMode) {
+    box.innerHTML = '🐛 Debug mode ON\n\n';
+  }
+}
+
 async function queryTable(table, params = '') {
   const url = `${SUPABASE_URL}/rest/v1/${table}${params}`;
+  debug(`🔄 Fetching: ${url}`);
+  
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -112,13 +133,20 @@ async function queryTable(table, params = '') {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
   
-  const count = response.headers.get('content-range');
   const data = await response.json();
+  const contentRange = response.headers.get('content-range');
   
-  return {
-    data: data,
-    count: count ? parseInt(count.split('/')[1]) : data.length
-  };
+  debug(`✅ Response: ${data.length} rows, Content-Range: ${contentRange}`);
+  
+  let count = data.length;
+  if (contentRange) {
+    const match = contentRange.match(/\/(\d+)/);
+    if (match) {
+      count = parseInt(match[1]);
+    }
+  }
+  
+  return { data, count };
 }
 
 let trafficChart, deviceChart;
@@ -174,6 +202,8 @@ function showStatus(msg) {
 
 async function loadAllData() {
   console.log('🔄 Loading analytics data...');
+  debug('🔄 Starting data load...');
+  
   try {
     document.getElementById('errorBox').innerHTML = '';
     await loadStats();
@@ -184,33 +214,45 @@ async function loadAllData() {
     await loadClicksTable();
     await loadEventsTable();
     console.log('✅ All data loaded!');
+    debug('✅ All data loaded successfully!');
     showStatus('✅ Data refreshed successfully!');
   } catch (error) {
     console.error('❌ Error:', error);
+    debug('❌ Error: ' + error.message);
     document.getElementById('errorBox').innerHTML = '<div class="error"><strong>Error:</strong> ' + escapeHtml(error.message) + '</div>';
   }
 }
 
 async function loadStats() {
-  const { count: s } = await queryTable('analytics_sessions', '?select=id');
-  document.getElementById('totalSessions').textContent = s || 0;
+  debug('📊 Loading stats...');
   
-  const { count: v } = await queryTable('analytics_page_views', '?select=id');
-  document.getElementById('totalPageViews').textContent = v || 0;
+  const { count: s } = await queryTable('analytics_sessions', '?select=*');
+  debug(`Sessions count: ${s}`);
+  document.getElementById('totalSessions').textContent = s;
   
-  const { count: c } = await queryTable('analytics_clicks', '?select=id');
-  document.getElementById('totalClicks').textContent = c || 0;
+  const { count: v } = await queryTable('analytics_page_views', '?select=*');
+  debug(`Page views count: ${v}`);
+  document.getElementById('totalPageViews').textContent = v;
   
-  const { count: e } = await queryTable('analytics_events', '?select=id');
-  document.getElementById('totalEvents').textContent = e || 0;
+  const { count: c } = await queryTable('analytics_clicks', '?select=*');
+  debug(`Clicks count: ${c}`);
+  document.getElementById('totalClicks').textContent = c;
+  
+  const { count: e } = await queryTable('analytics_events', '?select=*');
+  debug(`Events count: ${e}`);
+  document.getElementById('totalEvents').textContent = e;
 }
 
 async function loadTrafficChart() {
+  debug('📈 Loading traffic chart...');
+  
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
   const { data } = await queryTable('analytics_page_views', 
     `?select=viewed_at&viewed_at=gte.${sevenDaysAgo.toISOString()}&order=viewed_at.asc`);
+  
+  debug(`Traffic data: ${data.length} rows`);
   
   const dailyCounts = {};
   (data || []).forEach(v => {
@@ -224,7 +266,11 @@ async function loadTrafficChart() {
 }
 
 async function loadDeviceChart() {
+  debug('📱 Loading device chart...');
+  
   const { data } = await queryTable('analytics_sessions', '?select=device_type');
+  
+  debug(`Device data: ${data.length} rows`);
   
   const counts = {};
   (data || []).forEach(s => { 
@@ -238,6 +284,8 @@ async function loadDeviceChart() {
 }
 
 async function loadSessionsTable() {
+  debug('👥 Loading sessions table...');
+  
   const { data, error } = await queryTable('analytics_sessions', 
     '?select=*&order=started_at.desc&limit=20');
   
@@ -265,6 +313,8 @@ async function loadSessionsTable() {
 }
 
 async function loadPagesTable() {
+  debug('📄 Loading pages table...');
+  
   const { data, error } = await queryTable('analytics_page_views', '?select=path,time_on_page');
   
   const tbody = document.getElementById('pagesTable');
@@ -299,6 +349,8 @@ async function loadPagesTable() {
 }
 
 async function loadClicksTable() {
+  debug('🖱️ Loading clicks table...');
+  
   const { data, error } = await queryTable('analytics_clicks', '?select=element_tag,element_text&limit=1000');
   
   const tbody = document.getElementById('clicksTable');
@@ -330,6 +382,8 @@ async function loadClicksTable() {
 }
 
 async function loadEventsTable() {
+  debug('🎯 Loading events table...');
+  
   const { data, error } = await queryTable('analytics_events', '?select=event_name,event_category,event_label');
   
   const tbody = document.getElementById('eventsTable');
@@ -361,11 +415,10 @@ async function loadEventsTable() {
   }).join('');
 }
 
-// Initialize
 initCharts();
 loadAllData();
 setInterval(loadAllData, 60000);
-console.log('🚀 Admin Dashboard Loaded (Direct REST API)');
+console.log('🚀 Admin Dashboard Loaded (FIXED VERSION)');
 </script>
 
 </body>
