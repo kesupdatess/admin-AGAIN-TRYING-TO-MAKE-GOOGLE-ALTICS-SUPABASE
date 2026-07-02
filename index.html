@@ -7,10 +7,6 @@
 <style>
 body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #0f0; }
 h1 { color: #fff; }
-.box { background: #2a2a2a; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #0f0; }
-.error { border-left-color: #f00; color: #f88; }
-.success { border-left-color: #0f0; color: #8f8; }
-.warn { border-left-color: #ff0; color: #ff8; }
 .log { background: #000; padding: 10px; margin: 5px 0; font-size: 12px; max-height: 400px; overflow-y: auto; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #fff; }
 th, td { padding: 8px; border: 1px solid #444; text-align: left; font-size: 12px; }
@@ -22,17 +18,21 @@ th { background: #333; }
 </head>
 <body>
 
-<h1>🔍 Admin Panel - DEBUG MODE</h1>
-<p style="color:#aaa;">Yeh page exact error dikhayega. Neeche ke logs dekho.</p>
+<h1>🔍 Admin Panel - DEBUG MODE (FIXED)</h1>
+<p style="color:#aaa;">URL trim ho gaya hai. Ab test ho raha hai...</p>
 
 <div id="debugLog" class="log"></div>
-
 <div id="stats"></div>
 <div id="data"></div>
 
 <script>
-const URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
-const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
+// ⚠️ IMPORTANT: URLs ko .trim() kiya hai - invisible characters hat jayenge
+const RAW_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
+const RAW_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
+
+// Trim all whitespace and invisible characters
+const URL = RAW_URL.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+const KEY = RAW_KEY.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
 
 function log(msg, type = 'info') {
   const box = document.getElementById('debugLog');
@@ -40,31 +40,45 @@ function log(msg, type = 'info') {
   const color = type === 'error' ? '#f88' : type === 'success' ? '#8f8' : type === 'warn' ? '#ff8' : '#8cf';
   box.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
   box.scrollTop = box.scrollHeight;
-  console.log(msg);
 }
 
 async function test() {
   log('🚀 Starting debug test...');
+  log(`📏 URL length: ${URL.length} chars`);
+  log(`📏 KEY length: ${KEY.length} chars`);
+  log(`🔗 URL: "${URL}"`);
   
-  // Step 1: Check if Supabase SDK loaded
+  // Check URL format
+  if (!URL.startsWith('https://')) {
+    log('❌ URL does not start with https://', 'error');
+    return;
+  }
+  if (!URL.includes('.supabase.co')) {
+    log('❌ URL does not contain .supabase.co', 'error');
+    return;
+  }
+  log('✅ URL format looks good');
+  
+  // Check SDK
   if (typeof supabase === 'undefined') {
     log('❌ Supabase SDK NOT loaded!', 'error');
     return;
   }
   log('✅ Supabase SDK loaded');
   
-  // Step 2: Create client
+  // Create client
   let db;
   try {
     db = supabase.createClient(URL, KEY);
-    log('✅ Client created');
+    log('✅ Client created successfully!');
   } catch (e) {
     log('❌ Client creation failed: ' + e.message, 'error');
+    log('💡 Try typing URL manually instead of copy-paste', 'warn');
     return;
   }
   
-  // Step 3: Test simple query
-  log('🔄 Testing simple SELECT query...');
+  // Test query
+  log('🔄 Testing SELECT query...');
   const startTime = Date.now();
   
   const { data, error, count, status } = await db
@@ -76,26 +90,22 @@ async function test() {
   
   if (error) {
     log('❌ Query FAILED!', 'error');
-    log('Error message: ' + error.message, 'error');
-    log('Error details: ' + JSON.stringify(error), 'error');
-    log('Status: ' + status, 'error');
-    log('Time taken: ' + timeTaken + 'ms', 'warn');
+    log('Error: ' + error.message, 'error');
+    log('Details: ' + JSON.stringify(error), 'error');
+    log('Time: ' + timeTaken + 'ms', 'warn');
     return;
   }
   
   log(`✅ Query SUCCESS in ${timeTaken}ms`, 'success');
-  log(`📊 Rows returned: ${data?.length || 0}`, 'success');
-  log(`📊 Total count: ${count}`, 'success');
+  log(`📊 Total sessions: ${count}`, 'success');
   
-  // Step 4: Show stats
-  const statsDiv = document.getElementById('stats');
-  statsDiv.innerHTML = `
+  // Stats
+  document.getElementById('stats').innerHTML = `
     <div class="stat"><div class="num">${count || 0}</div><div class="label">Total Sessions</div></div>
     <div class="stat"><div class="num">${timeTaken}ms</div><div class="label">Query Time</div></div>
-    <div class="stat"><div class="num">${data?.length || 0}</div><div class="label">Rows Fetched</div></div>
   `;
   
-  // Step 5: Test all tables
+  // Test all tables
   log('🔄 Testing all tables...');
   const tables = [
     'analytics_sessions',
@@ -115,7 +125,6 @@ async function test() {
     
     if (e) {
       html += `<tr><td>${table}</td><td>-</td><td style="color:#f88;">❌ ${e.message}</td><td>${t2}ms</td></tr>`;
-      log(`❌ ${table}: ${e.message}`, 'error');
     } else {
       html += `<tr><td>${table}</td><td>${c || 0}</td><td style="color:#8f8;">✅ OK</td><td>${t2}ms</td></tr>`;
       log(`✅ ${table}: ${c || 0} rows (${t2}ms)`, 'success');
@@ -123,9 +132,8 @@ async function test() {
   }
   html += '</table>';
   
-  // Step 6: Show sample data
+  // Show sample data
   if (data && data.length > 0) {
-    log('📋 Sample session data:');
     html += '<h2 style="color:#fff;margin-top:20px;">👥 Latest Sessions</h2><table><tr><th>Session ID</th><th>Device</th><th>Browser</th><th>OS</th><th>Time</th></tr>';
     data.forEach(s => {
       html += `<tr>
@@ -140,11 +148,9 @@ async function test() {
   }
   
   document.getElementById('data').innerHTML = html;
-  
-  log('✅ Debug test complete!', 'success');
+  log('✅ Debug complete!', 'success');
 }
 
-// Run test
 test();
 </script>
 
