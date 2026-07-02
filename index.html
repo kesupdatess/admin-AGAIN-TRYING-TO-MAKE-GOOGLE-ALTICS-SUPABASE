@@ -2,156 +2,353 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Admin Panel - DEBUG</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel - Analytics Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #0f0; }
-h1 { color: #fff; }
-.log { background: #000; padding: 10px; margin: 5px 0; font-size: 12px; max-height: 400px; overflow-y: auto; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #fff; }
-th, td { padding: 8px; border: 1px solid #444; text-align: left; font-size: 12px; }
-th { background: #333; }
-.stat { display: inline-block; background: #333; padding: 15px 25px; margin: 5px; border-radius: 6px; color: #fff; }
-.stat .num { font-size: 32px; font-weight: bold; color: #4af; }
-.stat .label { font-size: 12px; color: #aaa; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { margin-bottom: 20px; color: #333; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+.stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.stat-card h3 { font-size: 14px; color: #666; margin-bottom: 8px; }
+.stat-card .value { font-size: 32px; font-weight: bold; color: #2563eb; }
+.section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+.section h2 { margin-bottom: 15px; color: #333; font-size: 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; word-break: break-word; }
+th { background: #f9f9f9; font-weight: 600; color: #666; }
+tr:hover { background: #f9f9f9; }
+.chart-container { position: relative; height: 300px; margin-top: 15px; }
+.btn { padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-bottom: 20px; margin-right: 10px; text-decoration: none; display: inline-block; }
+.btn:hover { background: #1e40af; }
+.loading { text-align: center; padding: 40px; color: #999; }
+.error { background: #fee; color: #c33; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+.success { background: #efe; color: #3c3; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
 </style>
 </head>
 <body>
 
-<h1>🔍 Admin Panel - DEBUG MODE (FIXED)</h1>
-<p style="color:#aaa;">URL trim ho gaya hai. Ab test ho raha hai...</p>
+<div class="container">
+  <h1>📊 Analytics Dashboard</h1>
+  <a href="https://kesupdatess.github.io/dummy-website/" class="btn">← Dummy Website</a>
+  <button class="btn" onclick="loadAllData()">🔄 Refresh Data</button>
+  
+  <div id="errorBox"></div>
+  <div id="statusBox"></div>
 
-<div id="debugLog" class="log"></div>
-<div id="stats"></div>
-<div id="data"></div>
+  <div class="stats">
+    <div class="stat-card"><h3>Total Sessions</h3><div class="value" id="totalSessions">-</div></div>
+    <div class="stat-card"><h3>Page Views</h3><div class="value" id="totalPageViews">-</div></div>
+    <div class="stat-card"><h3>Total Clicks</h3><div class="value" id="totalClicks">-</div></div>
+    <div class="stat-card"><h3>Custom Events</h3><div class="value" id="totalEvents">-</div></div>
+  </div>
+
+  <div class="section">
+    <h2>📈 Traffic (Last 7 Days)</h2>
+    <div class="chart-container"><canvas id="trafficChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <h2>📱 Device Types</h2>
+    <div class="chart-container"><canvas id="deviceChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <h2>👥 Recent Sessions</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Device</th><th>Browser</th><th>OS</th><th>Referrer</th></tr></thead>
+      <tbody id="sessionsTable"><tr><td colspan="5" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>📄 Most Visited Pages</h2>
+    <table>
+      <thead><tr><th>Page</th><th>Views</th><th>Avg Time</th></tr></thead>
+      <tbody id="pagesTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>🖱️ Most Clicked Elements</h2>
+    <table>
+      <thead><tr><th>Element</th><th>Text</th><th>Clicks</th></tr></thead>
+      <tbody id="clicksTable"><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>🎯 Custom Events</h2>
+    <table>
+      <thead><tr><th>Event</th><th>Category</th><th>Label</th><th>Count</th></tr></thead>
+      <tbody id="eventsTable"><tr><td colspan="4" class="loading">Loading...</td></tr></tbody>
+    </table>
+  </div>
+</div>
 
 <script>
-// ⚠️ IMPORTANT: URLs ko .trim() kiya hai - invisible characters hat jayenge
-const RAW_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
-const RAW_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
+// ═══════════════════════════════════════════════════════
+// SUPABASE CONFIG - MANUALLY TYPED (NO COPY-PASTE ISSUES)
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://uegdizdnminwhkxcdcle.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ2RpemRubWlud2hreGNkY2xlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODk2MjgsImV4cCI6MjA5NzY2NTYyOH0.2wiAHbaoNoDva_tRseDAywVMu_6AioCGlVLgoVb0d6s';
 
-// Trim all whitespace and invisible characters
-const URL = RAW_URL.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
-const KEY = RAW_KEY.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function log(msg, type = 'info') {
-  const box = document.getElementById('debugLog');
-  const time = new Date().toLocaleTimeString();
-  const color = type === 'error' ? '#f88' : type === 'success' ? '#8f8' : type === 'warn' ? '#ff8' : '#8cf';
-  box.innerHTML += `<div style="color:${color}">[${time}] ${msg}</div>`;
-  box.scrollTop = box.scrollHeight;
+let trafficChart, deviceChart;
+
+function initCharts() {
+  trafficChart = new Chart(document.getElementById('trafficChart').getContext('2d'), {
+    type: 'line',
+    data: { 
+      labels: [], 
+      datasets: [{ 
+        label: 'Page Views', 
+        data: [], 
+        borderColor: '#2563eb', 
+        backgroundColor: 'rgba(37, 99, 235, 0.1)', 
+        tension: 0.4, 
+        fill: true 
+      }] 
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+  
+  deviceChart = new Chart(document.getElementById('deviceChart').getContext('2d'), {
+    type: 'doughnut',
+    data: { 
+      labels: [], 
+      datasets: [{ 
+        data: [], 
+        backgroundColor: ['#2563eb', '#059669', '#d97706', '#dc2626', '#8b5cf6'] 
+      }] 
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
 }
 
-async function test() {
-  log('🚀 Starting debug test...');
-  log(`📏 URL length: ${URL.length} chars`);
-  log(`📏 KEY length: ${KEY.length} chars`);
-  log(`🔗 URL: "${URL}"`);
-  
-  // Check URL format
-  if (!URL.startsWith('https://')) {
-    log('❌ URL does not start with https://', 'error');
-    return;
-  }
-  if (!URL.includes('.supabase.co')) {
-    log('❌ URL does not contain .supabase.co', 'error');
-    return;
-  }
-  log('✅ URL format looks good');
-  
-  // Check SDK
-  if (typeof supabase === 'undefined') {
-    log('❌ Supabase SDK NOT loaded!', 'error');
-    return;
-  }
-  log('✅ Supabase SDK loaded');
-  
-  // Create client
-  let db;
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function safeHostname(url) {
   try {
-    db = supabase.createClient(URL, KEY);
-    log('✅ Client created successfully!');
-  } catch (e) {
-    log('❌ Client creation failed: ' + e.message, 'error');
-    log('💡 Try typing URL manually instead of copy-paste', 'warn');
-    return;
+    if (!url || !url.includes('http')) return url || 'Direct';
+    return new URL(url).hostname;
+  } catch(e) { 
+    return url || 'Direct'; 
   }
-  
-  // Test query
-  log('🔄 Testing SELECT query...');
-  const startTime = Date.now();
-  
-  const { data, error, count, status } = await db
-    .from('analytics_sessions')
-    .select('*', { count: 'exact' })
-    .limit(5);
-  
-  const timeTaken = Date.now() - startTime;
-  
-  if (error) {
-    log('❌ Query FAILED!', 'error');
-    log('Error: ' + error.message, 'error');
-    log('Details: ' + JSON.stringify(error), 'error');
-    log('Time: ' + timeTaken + 'ms', 'warn');
-    return;
-  }
-  
-  log(`✅ Query SUCCESS in ${timeTaken}ms`, 'success');
-  log(`📊 Total sessions: ${count}`, 'success');
-  
-  // Stats
-  document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="num">${count || 0}</div><div class="label">Total Sessions</div></div>
-    <div class="stat"><div class="num">${timeTaken}ms</div><div class="label">Query Time</div></div>
-  `;
-  
-  // Test all tables
-  log('🔄 Testing all tables...');
-  const tables = [
-    'analytics_sessions',
-    'analytics_page_views', 
-    'analytics_clicks',
-    'analytics_events',
-    'analytics_errors',
-    'analytics_performance'
-  ];
-  
-  let html = '<h2 style="color:#fff;margin-top:20px;">📋 Table Status</h2><table><tr><th>Table</th><th>Count</th><th>Status</th><th>Time</th></tr>';
-  
-  for (const table of tables) {
-    const t1 = Date.now();
-    const { data: d, error: e, count: c } = await db.from(table).select('*', { count: 'exact', head: true });
-    const t2 = Date.now() - t1;
-    
-    if (e) {
-      html += `<tr><td>${table}</td><td>-</td><td style="color:#f88;">❌ ${e.message}</td><td>${t2}ms</td></tr>`;
-    } else {
-      html += `<tr><td>${table}</td><td>${c || 0}</td><td style="color:#8f8;">✅ OK</td><td>${t2}ms</td></tr>`;
-      log(`✅ ${table}: ${c || 0} rows (${t2}ms)`, 'success');
-    }
-  }
-  html += '</table>';
-  
-  // Show sample data
-  if (data && data.length > 0) {
-    html += '<h2 style="color:#fff;margin-top:20px;">👥 Latest Sessions</h2><table><tr><th>Session ID</th><th>Device</th><th>Browser</th><th>OS</th><th>Time</th></tr>';
-    data.forEach(s => {
-      html += `<tr>
-        <td>${s.session_id?.substring(0, 15)}...</td>
-        <td>${s.device_type || '-'}</td>
-        <td>${s.browser || '-'}</td>
-        <td>${s.os || '-'}</td>
-        <td>${new Date(s.started_at).toLocaleString()}</td>
-      </tr>`;
-    });
-    html += '</table>';
-  }
-  
-  document.getElementById('data').innerHTML = html;
-  log('✅ Debug complete!', 'success');
 }
 
-test();
+function showStatus(msg) {
+  document.getElementById('statusBox').innerHTML = '<div class="success">' + msg + '</div>';
+  setTimeout(() => { document.getElementById('statusBox').innerHTML = ''; }, 3000);
+}
+
+async function loadAllData() {
+  console.log('🔄 Loading analytics data...');
+  try {
+    document.getElementById('errorBox').innerHTML = '';
+    await loadStats();
+    await loadTrafficChart();
+    await loadDeviceChart();
+    await loadSessionsTable();
+    await loadPagesTable();
+    await loadClicksTable();
+    await loadEventsTable();
+    console.log('✅ All data loaded!');
+    showStatus('✅ Data refreshed successfully!');
+  } catch (error) {
+    console.error('❌ Error:', error);
+    document.getElementById('errorBox').innerHTML = '<div class="error"><strong>Error:</strong> ' + escapeHtml(error.message) + '</div>';
+  }
+}
+
+async function loadStats() {
+  const { count: s } = await db.from('analytics_sessions').select('*', { count: 'exact', head: true });
+  document.getElementById('totalSessions').textContent = s || 0;
+  
+  const { count: v } = await db.from('analytics_page_views').select('*', { count: 'exact', head: true });
+  document.getElementById('totalPageViews').textContent = v || 0;
+  
+  const { count: c } = await db.from('analytics_clicks').select('*', { count: 'exact', head: true });
+  document.getElementById('totalClicks').textContent = c || 0;
+  
+  const { count: e } = await db.from('analytics_events').select('*', { count: 'exact', head: true });
+  document.getElementById('totalEvents').textContent = e || 0;
+}
+
+async function loadTrafficChart() {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const { data } = await db
+    .from('analytics_page_views')
+    .select('viewed_at')
+    .gte('viewed_at', sevenDaysAgo.toISOString())
+    .order('viewed_at', { ascending: true });
+  
+  const dailyCounts = {};
+  (data || []).forEach(v => {
+    const date = new Date(v.viewed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+  });
+  
+  trafficChart.data.labels = Object.keys(dailyCounts);
+  trafficChart.data.datasets[0].data = Object.values(dailyCounts);
+  trafficChart.update();
+}
+
+async function loadDeviceChart() {
+  const { data } = await db.from('analytics_sessions').select('device_type');
+  
+  const counts = {};
+  (data || []).forEach(s => { 
+    const t = s.device_type || 'Unknown'; 
+    counts[t] = (counts[t] || 0) + 1; 
+  });
+  
+  deviceChart.data.labels = Object.keys(counts);
+  deviceChart.data.datasets[0].data = Object.values(counts);
+  deviceChart.update();
+}
+
+async function loadSessionsTable() {
+  const { data, error } = await db
+    .from('analytics_sessions')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(20);
+  
+  const tbody = document.getElementById('sessionsTable');
+  
+  if (error) { 
+    tbody.innerHTML = '<tr><td colspan="5" style="color:red;">Error: ' + escapeHtml(error.message) + '</td></tr>'; 
+    return; 
+  }
+  
+  if (!data || data.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="5" class="loading">No sessions yet</td></tr>'; 
+    return; 
+  }
+  
+  tbody.innerHTML = data.map(s => `
+    <tr>
+      <td>${new Date(s.started_at).toLocaleString()}</td>
+      <td>${escapeHtml(s.device_type) || 'Unknown'}</td>
+      <td>${escapeHtml(s.browser) || 'Unknown'}</td>
+      <td>${escapeHtml(s.os) || 'Unknown'}</td>
+      <td>${escapeHtml(safeHostname(s.referrer))}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadPagesTable() {
+  const { data, error } = await db.from('analytics_page_views').select('path, time_on_page');
+  
+  const tbody = document.getElementById('pagesTable');
+  
+  if (error) { 
+    tbody.innerHTML = '<tr><td colspan="3" style="color:red;">Error: ' + escapeHtml(error.message) + '</td></tr>'; 
+    return; 
+  }
+  
+  const pages = {};
+  (data || []).forEach(v => {
+    const p = v.path || 'unknown';
+    if (!pages[p]) pages[p] = { views: 0, totalTime: 0 };
+    pages[p].views++;
+    pages[p].totalTime += v.time_on_page || 0;
+  });
+  
+  const sorted = Object.entries(pages).sort((a, b) => b[1].views - a[1].views).slice(0, 15);
+  
+  if (sorted.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="3" class="loading">No pages yet</td></tr>'; 
+    return; 
+  }
+  
+  tbody.innerHTML = sorted.map(([p, s]) => `
+    <tr>
+      <td>${escapeHtml(p)}</td>
+      <td>${s.views}</td>
+      <td>${Math.round(s.totalTime / s.views)}s</td>
+    </tr>
+  `).join('');
+}
+
+async function loadClicksTable() {
+  const { data, error } = await db.from('analytics_clicks').select('element_tag, element_text').limit(1000);
+  
+  const tbody = document.getElementById('clicksTable');
+  
+  if (error) { 
+    tbody.innerHTML = '<tr><td colspan="3" style="color:red;">Error: ' + escapeHtml(error.message) + '</td></tr>'; 
+    return; 
+  }
+  
+  const clicks = {};
+  (data || []).forEach(c => {
+    const key = (c.element_tag || 'unknown') + '|' + (c.element_text || '');
+    clicks[key] = (clicks[key] || 0) + 1;
+  });
+  
+  const sorted = Object.entries(clicks).sort((a, b) => b[1] - a[1]).slice(0, 20);
+  
+  if (sorted.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="3" class="loading">No clicks yet</td></tr>'; 
+    return; 
+  }
+  
+  tbody.innerHTML = sorted.map(([k, c]) => {
+    const parts = k.split('|');
+    const tag = parts[0];
+    const text = parts[1];
+    return '<tr><td>' + escapeHtml(tag) + '</td><td>' + escapeHtml(text) + '</td><td>' + c + '</td></tr>';
+  }).join('');
+}
+
+async function loadEventsTable() {
+  const { data, error } = await db.from('analytics_events').select('event_name, event_category, event_label');
+  
+  const tbody = document.getElementById('eventsTable');
+  
+  if (error) { 
+    tbody.innerHTML = '<tr><td colspan="4" style="color:red;">Error: ' + escapeHtml(error.message) + '</td></tr>'; 
+    return; 
+  }
+  
+  const events = {};
+  (data || []).forEach(e => {
+    const key = (e.event_name || 'unknown') + '|' + (e.event_category || '') + '|' + (e.event_label || '');
+    events[key] = (events[key] || 0) + 1;
+  });
+  
+  const sorted = Object.entries(events).sort((a, b) => b[1] - a[1]).slice(0, 25);
+  
+  if (sorted.length === 0) { 
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">No events yet</td></tr>'; 
+    return; 
+  }
+  
+  tbody.innerHTML = sorted.map(([k, c]) => {
+    const parts = k.split('|');
+    const name = parts[0];
+    const cat = parts[1];
+    const lbl = parts[2];
+    return '<tr><td>' + escapeHtml(name) + '</td><td>' + escapeHtml(cat) + '</td><td>' + escapeHtml(lbl) + '</td><td>' + c + '</td></tr>';
+  }).join('');
+}
+
+// Initialize
+initCharts();
+loadAllData();
+setInterval(loadAllData, 60000);
+console.log('🚀 Admin Dashboard Loaded');
 </script>
 
 </body>
